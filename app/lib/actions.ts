@@ -6,7 +6,7 @@ import postgres from "postgres";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { signIn } from '@/auth';
+import { signIn, signOut } from '@/auth';
 import { AuthError } from 'next-auth';
 
 // connect to postgress
@@ -116,4 +116,9 @@ export async function authenticate(prevState:string|undefined,formData :FormData
     throw error;
   }
 
+}
+
+// Logout action
+export async function handleSignOut() {
+  await signOut();
 }
