@@ -1,12 +1,12 @@
 "use client"
 
-import * as React from "react"
-import { useState, useRef, useEffect } from "react"
-import { Send, Sparkles, User, Bot } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Card } from "@/components/ui/card"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Bot, Globe, Search, Send, Sparkles, User, Zap } from "lucide-react"
+import * as React from "react"
+import { useEffect, useRef, useState } from "react"
 
 interface Message {
   id: string
@@ -47,6 +47,7 @@ export function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [searchStage, setSearchStage] = useState<'searching' | 'analyzing' | 'generating'>('searching')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -78,8 +79,13 @@ export function ChatInterface() {
     setMessages(prev => [...prev, userMessage])
     setInput("")
     setIsLoading(true)
+    setSearchStage('searching')
 
     try {
+      // Simulate search stages for better UX
+      setTimeout(() => setSearchStage('analyzing'), 1000)
+      setTimeout(() => setSearchStage('generating'), 2000)
+
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
@@ -111,6 +117,7 @@ export function ChatInterface() {
       setMessages(prev => [...prev, errorMessage])
     } finally {
       setIsLoading(false)
+      setSearchStage('searching')
     }
   }
 
@@ -174,7 +181,14 @@ export function ChatInterface() {
                 
                 <div className="flex-1 space-y-2">
                   <div className="prose prose-sm max-w-none">
-                    <p className="whitespace-pre-wrap">{message.content}</p>
+                    <div 
+                      className="whitespace-pre-wrap"
+                      dangerouslySetInnerHTML={{
+                        __html: message.content
+                          .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                          .replace(/\n/g, '<br>')
+                      }}
+                    />
                   </div>
                   
                   {/* Sources */}
@@ -209,21 +223,41 @@ export function ChatInterface() {
               </div>
             ))}
             
-            {/* Loading indicator */}
+            {/* Enhanced Loading indicator with stages */}
             {isLoading && (
               <div className="flex gap-4">
                 <Avatar className="w-8 h-8 shrink-0">
                   <AvatarFallback>
-                    <Bot className="w-4 h-4" />
+                    <Bot className="w-4 h-4 animate-pulse" />
                   </AvatarFallback>
                 </Avatar>
-                <div className="flex items-center gap-2">
-                  <div className="flex space-x-1">
-                    <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" />
-                    <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }} />
-                    <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }} />
+                <div className="flex items-center gap-3">
+                  {/* Animated icon based on stage */}
+                  <div className="flex items-center gap-2">
+                    {searchStage === 'searching' && (
+                      <Search className="w-4 h-4 text-blue-500 animate-spin" />
+                    )}
+                    {searchStage === 'analyzing' && (
+                      <Globe className="w-4 h-4 text-green-500 animate-pulse" />
+                    )}
+                    {searchStage === 'generating' && (
+                      <Zap className="w-4 h-4 text-purple-500 animate-bounce" />
+                    )}
                   </div>
-                  <span className="text-sm text-muted-foreground">Searching and analyzing...</span>
+                  
+                  {/* Bouncing dots */}
+                  <div className="flex space-x-1">
+                    <div className="w-2 h-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full animate-bounce" />
+                    <div className="w-2 h-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }} />
+                    <div className="w-2 h-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }} />
+                  </div>
+                  
+                  {/* Dynamic status text */}
+                  <span className="text-sm text-muted-foreground">
+                    {searchStage === 'searching' && '🔍 Searching the web...'}
+                    {searchStage === 'analyzing' && '🧠 Analyzing results...'}
+                    {searchStage === 'generating' && '✨ Generating response...'}
+                  </span>
                 </div>
               </div>
             )}

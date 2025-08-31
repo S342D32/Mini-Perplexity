@@ -19,29 +19,15 @@ import {
 } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
 
-// Mock data for recent chats
-const recentChats = [
-  {
-    id: "1",
-    title: "AI in healthcare trends",
-    timestamp: "2 hours ago",
-  },
-  {
-    id: "2", 
-    title: "Best React frameworks 2025",
-    timestamp: "1 day ago",
-  },
-  {
-    id: "3",
-    title: "Machine learning basics",
-    timestamp: "3 days ago",
-  },
-  {
-    id: "4",
-    title: "Climate change solutions",
-    timestamp: "1 week ago",
-  },
-]
+import { useState, useEffect } from 'react';
+import { SupabaseChatService } from '@/lib/services/supabaseChatService';
+
+interface ChatSession {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+}
 
 const navigationItems = [
   {
@@ -62,6 +48,52 @@ const navigationItems = [
 ]
 
 export function PerplexitySidebar() {
+  const [recentChats, setRecentChats] = useState<ChatSession[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    loadRecentChats();
+  }, []);
+
+  const loadRecentChats = async () => {
+    try {
+      const sessions = await SupabaseChatService.getRecentSessions();
+      setRecentChats(sessions || []);
+    } catch (error) {
+      console.error('Error loading chat sessions:', error);
+      // Fallback to empty array if Supabase not set up yet
+      setRecentChats([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleNewChat = async () => {
+    try {
+      const newSession = await SupabaseChatService.createNewSession();
+      setRecentChats(prev => [newSession, ...prev]);
+      // Navigate to new chat
+      window.location.href = `/dashboard/chat/${newSession.id}`;
+    } catch (error) {
+      console.error('Error creating new chat:', error);
+      // Fallback navigation
+      window.location.href = '/dashboard/chat';
+    }
+  };
+
+  const formatTimestamp = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffHours / 24);
+    
+    if (diffHours < 1) return 'Just now';
+    if (diffHours < 24) return `${diffHours} hours ago`;
+    if (diffDays < 7) return `${diffDays} days ago`;
+    return date.toLocaleDateString();
+  };
+
   return (
     <Sidebar variant="inset">
       <SidebarHeader>
@@ -74,7 +106,10 @@ export function PerplexitySidebar() {
         
         {/* New Chat Button */}
         <div className="px-4 pb-2">
-          <Button className="w-full justify-start gap-2 bg-purple-600 hover:bg-purple-500">
+          <Button 
+            onClick={handleNewChat}
+            className="w-full justify-start gap-2 bg-purple-600 hover:bg-purple-500"
+          >
             <Plus className="h-4 w-4" />
             New Chat
           </Button>
@@ -106,19 +141,27 @@ export function PerplexitySidebar() {
           <SidebarGroupLabel>Recent Chats</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {recentChats.map((chat) => (
-                <SidebarMenuItem key={chat.id}>
-                  <SidebarMenuButton asChild>
-                    <Link href={`/dashboard/chat/${chat.id}`}>
-                      <MessageSquare className="h-4 w-4" />
-                      <div className="flex flex-col items-start">
-                        <span className="truncate text-sm">{chat.title}</span>
-                        <span className="text-xs text-muted-foreground">{chat.timestamp}</span>
-                      </div>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {isLoading ? (
+                <div className="px-4 py-2 text-sm text-muted-foreground">Loading...</div>
+              ) : recentChats.length === 0 ? (
+                <div className="px-4 py-2 text-sm text-muted-foreground">No chats yet</div>
+              ) : (
+                recentChats.map((chat: ChatSession) => (
+                  <SidebarMenuItem key={chat.id}>
+                    <SidebarMenuButton asChild>
+                      <Link href={`/dashboard/chat/${chat.id}`}>
+                        <MessageSquare className="h-4 w-4" />
+                        <div className="flex flex-col items-start">
+                          <span className="truncate text-sm">{chat.title}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {formatTimestamp(chat.updated_at)}
+                          </span>
+                        </div>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
