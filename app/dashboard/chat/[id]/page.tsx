@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import ChatInterface from '../../(overview)/components/chat-interface';
+import {ChatInterface} from '../../(overview)/components/chat-interface';
 
 export default function ChatSessionPage() {
   const params = useParams();

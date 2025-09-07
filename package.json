@@ -2,7 +2,8 @@
   "private": true,
   "scripts": {
     "build": "next build",
-    "dev": "next dev --turbopack",
+    "dev": "next dev",
+    "dev:turbo": "next dev --turbopack",
     "start": "next start",
     "lint": "next lint",
     "init-supabase": "node scripts/init-supabase.js"
@@ -46,7 +47,9 @@
     "@types/react": "19.0.7",
     "@types/react-dom": "19.0.3",
     "eslint": "^9.32.0",
-    "eslint-config-next": "15.4.4"
+    "eslint-config-next": "15.4.4",
+    "ignore-loader": "^0.1.2",
+    "raw-loader": "^4.0.2"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

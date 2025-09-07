@@ -4,11 +4,22 @@
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Sessions table
+-- User mapping table to bridge NextAuth users with Supabase
+CREATE TABLE user_profiles (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    nextauth_user_id TEXT UNIQUE NOT NULL,
+    email TEXT NOT NULL,
+    name TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    metadata JSONB DEFAULT '{}'
+);
+
+-- Sessions table (updated to reference user_profiles)
 CREATE TABLE sessions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     title TEXT NOT NULL DEFAULT 'New Chat',
-    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    user_id TEXT REFERENCES user_profiles(nextauth_user_id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     is_active BOOLEAN DEFAULT true,
@@ -114,41 +125,51 @@ ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE message_sources ENABLE ROW LEVEL SECURITY;
 ALTER TABLE search_analytics ENABLE ROW LEVEL SECURITY;
 
--- Sessions policies
+-- User profiles policies
+CREATE POLICY "Users can view their own profile" ON user_profiles
+    FOR SELECT USING (nextauth_user_id = current_setting('app.current_user_id', true));
+
+CREATE POLICY "Users can insert their own profile" ON user_profiles
+    FOR INSERT WITH CHECK (nextauth_user_id = current_setting('app.current_user_id', true));
+
+CREATE POLICY "Users can update their own profile" ON user_profiles
+    FOR UPDATE USING (nextauth_user_id = current_setting('app.current_user_id', true));
+
+-- Sessions policies (updated for user_profiles reference)
 CREATE POLICY "Users can view their own sessions" ON sessions
-    FOR SELECT USING (auth.uid() = user_id);
+    FOR SELECT USING (user_id = current_setting('app.current_user_id', true));
 
 CREATE POLICY "Users can insert their own sessions" ON sessions
-    FOR INSERT WITH CHECK (auth.uid() = user_id);
+    FOR INSERT WITH CHECK (user_id = current_setting('app.current_user_id', true));
 
 CREATE POLICY "Users can update their own sessions" ON sessions
-    FOR UPDATE USING (auth.uid() = user_id);
+    FOR UPDATE USING (user_id = current_setting('app.current_user_id', true));
 
 CREATE POLICY "Users can delete their own sessions" ON sessions
-    FOR DELETE USING (auth.uid() = user_id);
+    FOR DELETE USING (user_id = current_setting('app.current_user_id', true));
 
--- Messages policies
+-- Messages policies (updated for user_profiles reference)
 CREATE POLICY "Users can view messages from their sessions" ON messages
     FOR SELECT USING (
         session_id IN (
-            SELECT id FROM sessions WHERE user_id = auth.uid()
+            SELECT id FROM sessions WHERE user_id = current_setting('app.current_user_id', true)
         )
     );
 
 CREATE POLICY "Users can insert messages to their sessions" ON messages
     FOR INSERT WITH CHECK (
         session_id IN (
-            SELECT id FROM sessions WHERE user_id = auth.uid()
+            SELECT id FROM sessions WHERE user_id = current_setting('app.current_user_id', true)
         )
     );
 
--- Message sources policies
+-- Message sources policies (updated for user_profiles reference)
 CREATE POLICY "Users can view sources from their messages" ON message_sources
     FOR SELECT USING (
         message_id IN (
             SELECT m.id FROM messages m
             JOIN sessions s ON m.session_id = s.id
-            WHERE s.user_id = auth.uid()
+            WHERE s.user_id = current_setting('app.current_user_id', true)
         )
     );
 
@@ -157,22 +178,22 @@ CREATE POLICY "Users can insert sources to their messages" ON message_sources
         message_id IN (
             SELECT m.id FROM messages m
             JOIN sessions s ON m.session_id = s.id
-            WHERE s.user_id = auth.uid()
+            WHERE s.user_id = current_setting('app.current_user_id', true)
         )
     );
 
--- Search analytics policies
+-- Search analytics policies (updated for user_profiles reference)
 CREATE POLICY "Users can view their search analytics" ON search_analytics
     FOR SELECT USING (
         session_id IN (
-            SELECT id FROM sessions WHERE user_id = auth.uid()
+            SELECT id FROM sessions WHERE user_id = current_setting('app.current_user_id', true)
         )
     );
 
 CREATE POLICY "Users can insert their search analytics" ON search_analytics
     FOR INSERT WITH CHECK (
         session_id IN (
-            SELECT id FROM sessions WHERE user_id = auth.uid()
+            SELECT id FROM sessions WHERE user_id = current_setting('app.current_user_id', true)
         )
     );
 

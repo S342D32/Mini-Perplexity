@@ -1,5 +1,6 @@
 import './global.css';
 import { Metadata } from 'next';
+import { AuthSessionProvider } from './providers/session-provider';
  
 export const metadata: Metadata = {
   title: {
@@ -17,7 +18,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <AuthSessionProvider>
+          {children}
+        </AuthSessionProvider>
+      </body>
     </html>
   );
 }

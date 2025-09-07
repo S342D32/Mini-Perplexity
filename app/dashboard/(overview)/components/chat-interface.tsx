@@ -7,6 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { SupabaseChatService } from "@/lib/services/supabaseChatService";
+import { useSession } from "next-auth/react";
+import { generateUUID } from "@/lib/utils/uuid";
 
 interface Message {
   id: string;
@@ -45,10 +48,24 @@ const welcomeCards = [
   },
 ];
 
-export function ChatInterface() {
+interface ChatInterfaceProps {
+  currentSessionId?: string | null;
+  onSessionChange?: (sessionId: string) => void;
+  className?: string;
+}
+
+export function ChatInterface({
+  currentSessionId,
+  onSessionChange,
+  className,
+}: ChatInterfaceProps) {
+  const { data: session } = useSession();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(
+    currentSessionId || null
+  );
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -67,33 +84,99 @@ export function ChatInterface() {
     }
   }, [input]);
 
+  // Load existing session messages
+  useEffect(() => {
+    if (sessionId) {
+      loadSessionMessages(sessionId);
+    }
+  }, [sessionId]);
+
+  // Update session ID when prop changes
+  useEffect(() => {
+    setSessionId(currentSessionId || null);
+  }, [currentSessionId]);
+
+  const loadSessionMessages = async (sessionId: string) => {
+    try {
+      const sessionData = await SupabaseChatService.loadSession(sessionId);
+      if (sessionData) {
+        const formattedMessages: Message[] = sessionData.messages.map(
+          (msg) => ({
+            id: msg.id,
+            content: msg.content,
+            role: msg.type === "user" ? "user" : "assistant",
+            timestamp: msg.timestamp,
+            sources: msg.sources || [],
+          })
+        );
+        setMessages(formattedMessages);
+      }
+    } catch (error) {
+      console.error("Error loading session messages:", error);
+    }
+  };
+
+  const createNewSession = async (): Promise<string> => {
+    try {
+      const newSession = await SupabaseChatService.createNewSession();
+      const newSessionId = newSession.id;
+      setSessionId(newSessionId);
+      onSessionChange?.(newSessionId);
+      return newSessionId;
+    } catch (error) {
+      console.error("Error creating session:", error);
+      const fallbackId = generateUUID(); // ✅ FIXED!
+      setSessionId(fallbackId);
+      onSessionChange?.(fallbackId);
+      return fallbackId;
+    }
+  };
+
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
 
+    // Ensure we have a session
+    let currentSession = sessionId;
+    if (!currentSession) {
+      currentSession = await createNewSession();
+    }
+
     const userMessage: Message = {
-      id: Date.now().toString(),
+      id: generateUUID(),
       content: input.trim(),
       role: "user",
       timestamp: new Date(),
     };
+      console.log('User message being created:', userMessage); // Debug log
+
 
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setIsLoading(true);
 
     try {
+      // Save user message to database
+      await SupabaseChatService.saveMessage({
+        sessionId: currentSession,
+        type: "user",
+        content: userMessage.content,
+      });
+
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ message: userMessage.content }),
+        body: JSON.stringify({
+          message: userMessage.content,
+          sessionId: currentSession,
+        }),
       });
 
       const data = await response.json();
 
       const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
+        id: generateUUID(),
         content: data.response,
         role: "assistant",
         timestamp: new Date(),
@@ -101,6 +184,20 @@ export function ChatInterface() {
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
+
+      // Save AI message to database
+      await SupabaseChatService.saveMessage({
+        sessionId: currentSession,
+        type: "ai",
+        content: assistantMessage.content,
+        sources: data.sources,
+        searchQuery: userMessage.content,
+      });
+
+      // Auto-generate title after first exchange
+      if (messages.length === 0) {
+        await SupabaseChatService.autoGenerateSessionTitle(currentSession);
+      }
     } catch (error) {
       console.error("Error sending message:", error);
       const errorMessage: Message = {

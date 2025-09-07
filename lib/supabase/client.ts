@@ -14,6 +14,35 @@ export const supabase = isSupabaseConfigured
 export interface Database {
   public: {
     Tables: {
+      user_profiles: {
+        Row: {
+          id: string;
+          nextauth_user_id: string;
+          email: string;
+          name: string | null;
+          created_at: string;
+          updated_at: string;
+          metadata: any;
+        };
+        Insert: {
+          id?: string;
+          nextauth_user_id: string;
+          email: string;
+          name?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          metadata?: any;
+        };
+        Update: {
+          id?: string;
+          nextauth_user_id?: string;
+          email?: string;
+          name?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          metadata?: any;
+        };
+      };
       sessions: {
         Row: {
           id: string;

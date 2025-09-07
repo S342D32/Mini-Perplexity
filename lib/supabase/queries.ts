@@ -1,5 +1,7 @@
 import { supabase } from './client';
 import { Session, Message, MessageSource } from '@/lib/database/models';
+import { generateUUID } from "@/lib/utils/uuid";
+
 
 export interface SupabaseSession {
   id: string;
@@ -48,38 +50,44 @@ export interface SupabaseMessageSource {
 }
 
 export class SupabaseSessionQueries {
-  // Create new session
+  // Create new session with proper UUID
   static async createSession(data: {
     title?: string;
     user_id?: string;
     metadata?: any;
     tags?: string[];
   }): Promise<SupabaseSession> {
+    if (!supabase) throw new Error('Supabase not configured');
+    
     const { data: session, error } = await supabase
       .from('sessions')
       .insert({
+        id: generateUUID(), // Generate proper UUID
         title: data.title || 'New Chat',
         user_id: data.user_id || null,
         metadata: data.metadata || {},
         tags: data.tags || []
       })
       .select()
-      .single();
+      .maybeSingle(); // Use maybeSingle to avoid 406 errors
 
     if (error) throw error;
-    return session;
+    return session!;
   }
 
   // Get session with messages and sources
   static async getSessionWithMessages(sessionId: string) {
+    if (!supabase) throw new Error('Supabase not configured');
+    
     // Get session
     const { data: session, error: sessionError } = await supabase
       .from('sessions')
       .select('*')
       .eq('id', sessionId)
-      .single();
+      .maybeSingle(); // Use maybeSingle instead of single
 
     if (sessionError) throw sessionError;
+    if (!session) return null;
 
     // Get messages
     const { data: messages, error: messagesError } = await supabase
@@ -91,6 +99,13 @@ export class SupabaseSessionQueries {
     if (messagesError) throw messagesError;
 
     // Get sources for all messages
+    if (!messages || messages.length === 0) {
+      return {
+        session,
+        messages: []
+      };
+    }
+
     const messageIds = messages.map(m => m.id);
     const { data: sources, error: sourcesError } = await supabase
       .from('message_sources')
@@ -101,7 +116,7 @@ export class SupabaseSessionQueries {
     if (sourcesError) throw sourcesError;
 
     // Group sources by message_id
-    const sourcesByMessage = sources.reduce((acc, source) => {
+    const sourcesByMessage = (sources || []).reduce((acc, source) => {
       if (!acc[source.message_id]) acc[source.message_id] = [];
       acc[source.message_id].push(source);
       return acc;
@@ -121,6 +136,8 @@ export class SupabaseSessionQueries {
 
   // Get recent sessions
   static async getRecentSessions(limit: number = 20): Promise<SupabaseSession[]> {
+    if (!supabase) throw new Error('Supabase not configured');
+    
     const { data, error } = await supabase
       .from('sessions')
       .select('*')
@@ -129,11 +146,13 @@ export class SupabaseSessionQueries {
       .limit(limit);
 
     if (error) throw error;
-    return data;
+    return data || [];
   }
 
   // Update session title
   static async updateSessionTitle(sessionId: string, title: string): Promise<void> {
+    if (!supabase) throw new Error('Supabase not configured');
+    
     const { error } = await supabase
       .from('sessions')
       .update({ title, updated_at: new Date().toISOString() })
@@ -144,6 +163,8 @@ export class SupabaseSessionQueries {
 
   // Delete session
   static async deleteSession(sessionId: string): Promise<void> {
+    if (!supabase) throw new Error('Supabase not configured');
+    
     const { error } = await supabase
       .from('sessions')
       .delete()
@@ -154,6 +175,8 @@ export class SupabaseSessionQueries {
 
   // Auto-generate session title from first message
   static async autoGenerateTitle(sessionId: string): Promise<string> {
+    if (!supabase) throw new Error('Supabase not configured');
+    
     const { data: firstMessage, error } = await supabase
       .from('messages')
       .select('content')
@@ -161,7 +184,7 @@ export class SupabaseSessionQueries {
       .eq('type', 'user')
       .order('sequence_number', { ascending: true })
       .limit(1)
-      .single();
+      .maybeSingle(); // Use maybeSingle
 
     if (error || !firstMessage) return 'New Chat';
 
@@ -187,9 +210,12 @@ export class SupabaseMessageQueries {
     search_query?: string;
     metadata?: any;
   }): Promise<SupabaseMessage> {
+    if (!supabase) throw new Error('Supabase not configured');
+    
     const { data: message, error } = await supabase
       .from('messages')
       .insert({
+        id: generateUUID(), // Generate proper UUID for message
         session_id: data.session_id,
         type: data.type,
         content: data.content,
@@ -201,23 +227,26 @@ export class SupabaseMessageQueries {
         metadata: data.metadata || {}
       })
       .select()
-      .single();
+      .maybeSingle(); // Use maybeSingle
 
     if (error) throw error;
-    return message;
+    return message!;
   }
 
   // Get next sequence number for a session
   static async getNextSequenceNumber(sessionId: string): Promise<number> {
+    if (!supabase) throw new Error('Supabase not configured');
+    
     const { data, error } = await supabase
       .from('messages')
       .select('sequence_number')
       .eq('session_id', sessionId)
       .order('sequence_number', { ascending: false })
-      .limit(1);
+      .limit(1)
+      .maybeSingle(); // Use maybeSingle
 
     if (error) throw error;
-    return data && data.length > 0 ? data[0].sequence_number + 1 : 1;
+    return data ? data.sequence_number + 1 : 1;
   }
 
   // Get recent messages for context
@@ -225,6 +254,8 @@ export class SupabaseMessageQueries {
     sessionId: string, 
     maxMessages: number = 10
   ): Promise<SupabaseMessage[]> {
+    if (!supabase) throw new Error('Supabase not configured');
+    
     const { data, error } = await supabase
       .from('messages')
       .select('*')
@@ -233,7 +264,7 @@ export class SupabaseMessageQueries {
       .limit(maxMessages);
 
     if (error) throw error;
-    return data.reverse(); // Return in chronological order
+    return (data || []).reverse(); // Return in chronological order
   }
 }
 
@@ -256,7 +287,10 @@ export class SupabaseSourceQueries {
       metadata?: any;
     }>
   ): Promise<SupabaseMessageSource[]> {
+    if (!sources || sources.length === 0) return [];
+
     const sourcesToInsert = sources.map(source => ({
+      id: generateUUID(),// Generate UUID for each source
       message_id: messageId,
       title: source.title,
       url: source.url,
@@ -272,6 +306,8 @@ export class SupabaseSourceQueries {
       metadata: source.metadata || {}
     }));
 
+    if (!supabase) throw new Error('Supabase not configured');
+    
     const { data, error } = await supabase
       .from('message_sources')
       .insert(sourcesToInsert)
@@ -285,11 +321,13 @@ export class SupabaseSourceQueries {
       .update({ sources_count: sources.length })
       .eq('id', messageId);
 
-    return data;
+    return data || [];
   }
 
   // Track source click
   static async trackSourceClick(sourceId: string): Promise<void> {
+    if (!supabase) throw new Error('Supabase not configured');
+    
     const { error } = await supabase
       .rpc('increment_source_clicks', { source_id: sourceId });
 

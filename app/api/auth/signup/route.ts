@@ -1,6 +1,6 @@
 // app/api/auth/signup/route.ts
-import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcrypt';
+import { NextRequest, NextResponse } from 'next/server';
 import postgres from 'postgres';
 
 const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require' });
@@ -20,11 +20,15 @@ export async function POST(req: NextRequest) {
     if (existingUsers.length > 0) {
       return NextResponse.json({ error: 'Email already in use' }, { status: 400 });
     }
-const userId = crypto.randomUUID();
+
+    // Remove this line - don't generate UUID
+    // const userId = crypto.randomUUID();
+    
     const hash = await bcrypt.hash(password, 10);
 
+    // Let the database auto-generate the integer ID
     await sql`
-      INSERT INTO users (id,email, password) VALUES (${userId},${email}, ${hash})
+      INSERT INTO users (email, password) VALUES (${email}, ${hash})
     `;
 
     return NextResponse.json({ success: true });
