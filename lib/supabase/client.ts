@@ -9,6 +9,10 @@ export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey);
 export const supabase = isSupabaseConfigured 
   ? createClient(supabaseUrl!, supabaseAnonKey!)
   : null;
+console.log('Supabase URL:', supabaseUrl)
+console.log('Supabase Key:', !!supabaseAnonKey)
+console.log('Is Supabase configured:', isSupabaseConfigured)
+
 
 // Database types for Supabase
 export interface Database {
