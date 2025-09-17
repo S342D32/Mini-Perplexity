@@ -6,7 +6,8 @@
     "dev:turbo": "next dev --turbopack",
     "start": "next start",
     "lint": "next lint",
-    "init-supabase": "node scripts/init-supabase.js"
+    "init-supabase": "node scripts/init-supabase.js",
+    "init-user-profiles": "node scripts/init-user-profiles.js"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",

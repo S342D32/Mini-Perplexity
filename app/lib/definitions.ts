@@ -7,6 +7,20 @@ export type User = {
   name: string;
   email: string;
   password: string;
+  nextauth_user_id: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type UserProfile = {
+  id: string;
+  name: string;
+  email: string;
+  password: string;
+  nextauth_user_id: string;
+  created_at: string;
+  updated_at: string;
+  metadata?: Record<string, any>;
 };
 
 export type Customer = {

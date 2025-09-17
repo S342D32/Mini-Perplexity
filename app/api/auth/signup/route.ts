@@ -1,39 +1,48 @@
-// app/api/auth/signup/route.ts
-import bcrypt from 'bcrypt';
+import { generateUniqueUserId } from '@/lib/utils/generateUserId';
 import { NextRequest, NextResponse } from 'next/server';
-import postgres from 'postgres';
-
-const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require' });
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, password } = await req.json();
+    // Dynamic imports to avoid client-side bundling
+    const { default: postgres } = await import('postgres');
+    const { default: bcrypt } = await import('bcrypt');
+    
+    const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require' });
+    
+    const { name, email, password } = await req.json();
 
     if (!email || !password || password.length < 6) {
       return NextResponse.json({ error: 'Invalid input' }, { status: 400 });
     }
 
+    // Check if user already exists in user_profiles table
     const existingUsers = await sql`
-      SELECT id FROM users WHERE email = ${email}
+      SELECT id FROM user_profiles WHERE email = ${email}
     `;
 
     if (existingUsers.length > 0) {
       return NextResponse.json({ error: 'Email already in use' }, { status: 400 });
     }
 
-    // Remove this line - don't generate UUID
-    // const userId = crypto.randomUUID();
+    // Generate unique user ID
+    const uniqueUserId = await generateUniqueUserId(sql);
     
+    // Hash password
     const hash = await bcrypt.hash(password, 10);
 
-    // Let the database auto-generate the integer ID
-    await sql`
-      INSERT INTO users (email, password) VALUES (${email}, ${hash})
+    // Insert into user_profiles table with all required fields
+    const result = await sql`
+      INSERT INTO user_profiles (name, email, password, nextauth_user_id, created_at, updated_at) 
+      VALUES (${name || ''}, ${email}, ${hash}, ${uniqueUserId}, NOW(), NOW())
+      RETURNING id, email, name, nextauth_user_id
     `;
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ 
+      success: true, 
+      user: result[0] 
+    });
   } catch (err: unknown) {
-    console.error(err);
+    console.error('Signup error:', err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }
